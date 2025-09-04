@@ -2,16 +2,20 @@
   "name": "card-app",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "author": "",
+  "keywords": [],
+  "license": "ISC",
+  "engines": {
+    "npm": "11.5.1",
+    "node": "24.5.0"
+  },
+  "main": "./dist/server.js",
   "scripts": {
     "start": "node dist/server.js",
     "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
     "build": "tsc",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
   "dependencies": {
     "bcryptjs": "^3.0.2",
     "cors": "^2.8.5",
