@@ -16,7 +16,7 @@ const CardSchema: Schema = new Schema(
     status: { 
       type: String, 
       required: true,
-      enum: ['todo', 'in-progress', 'done'],
+      enum: ['todo', 'doing', 'done'],
       default: 'todo'
     },
     dueDate: { type: Date },

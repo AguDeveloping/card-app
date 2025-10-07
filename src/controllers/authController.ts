@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
-import mongoose from 'mongoose';
 import User, { IUser } from '../models/User';
 import { generateToken } from '../config/auth';
+import logger from '../utils/logger';
 
 // Register a new user
 export const register = async (req: Request, res: Response): Promise<void> => {
@@ -116,9 +116,9 @@ export const initializeAdminUser = async (): Promise<void> => {
       });
       
       await adminUser.save();
-      console.log('Default admin user created');
+      logger.info('Default admin user created');
     }
   } catch (error) {
-    console.error('Error initializing admin user:', error);
+    logger.error('Error initializing admin user:', error);
   }
 };
