@@ -9,6 +9,7 @@ import { debugAuthMiddleware } from './middleware/debug';
 import { connectToDatabase } from './config/database';
 import { initializePassport } from './config/auth';
 import { initializeAdminUser } from './controllers/authController';
+import logger from './utils/logger';
 
 // Load environment variables
 dotenv.config();
@@ -34,13 +35,13 @@ app.use(passport.initialize()); // This is critical for passport authentication 
 
 // Connect to MongoDB
 connectToDatabase().catch(err => {
-  console.error('Failed to connect to database:', err);
+  logger.error('Failed to connect to database:', err);
   process.exit(1);
 });
 
 // Initialize admin user
 initializeAdminUser().catch(err => {
-  console.error('Failed to initialize admin user:', err);
+  logger.error('Failed to initialize admin user:', err);
 });
 
 // Routes
@@ -73,8 +74,8 @@ app.use(errorHandler);
 
 // Start server
 app.listen(port, () => {
-  console.log(`Server is running on port ${port}`);
-  console.log(`API documentation available at http://localhost:${port}`);
+  logger.info(`Server is running on port ${port}`);
+  logger.info(`API documentation available at http://localhost:${port}`);
 });
 
 export default app;

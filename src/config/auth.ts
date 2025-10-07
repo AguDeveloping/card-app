@@ -3,6 +3,7 @@ import { Strategy as LocalStrategy } from 'passport-local';
 import passport from 'passport';
 import jwt from 'jsonwebtoken';
 import User from '../models/User';
+import logger from '../utils/logger';
 
 // Use a consistent JWT secret across the application
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
@@ -16,20 +17,20 @@ const jwtOptions: StrategyOptions = {
 // JWT strategy for protecting routes
 passport.use(new JwtStrategy(jwtOptions, async (payload, done) => {
   try {
-    console.log('JWT Payload received:', payload);
+    //logger.info('JWT Payload received:', payload);
     
     // Find the user by ID from the JWT payload
     const user = await User.findById(payload.sub);
     
     if (!user) {
-      console.log('User not found with ID:', payload.sub);
+      //  logger.info('User not found with ID:', payload.sub);
       return done(null, false);
     }
-    
-    console.log('User authenticated:', user.username);
+
+    //logger.info('User authenticated:', user.username);
     return done(null, user);
   } catch (error) {
-    console.error('JWT Authentication Error:', error);
+    logger.error('JWT Authentication Error:', error);
     return done(error, false);
   }
 }));
@@ -69,28 +70,28 @@ export const generateToken = (userId: string): string => {
   };
   
   // Log token generation (but not the secret)
-  console.log('Generating token for user ID:', userId);
-  console.log('Token payload:', payload);
-  
+  logger.info('Generating token for user ID:', userId);
+  //logger.info('Token payload:', payload);
+
   const token = jwt.sign(payload, JWT_SECRET, { expiresIn: '1d' });
-  console.log('Token generated successfully');
-  
+  logger.info('Token generated successfully');
+
   return token;
 };
 
 // Authentication middleware with custom error handling
 export const requireAuth = (req: any, res: any, next: any) => {
   passport.authenticate('jwt', { session: false }, (err: any, user: any, info: any) => {
-    console.log('Authentication attempt:', { err, user: user ? 'User found' : 'No user', info });
+    // logger.info('Authentication attempt:', { err, user: user ? 'User found' : 'No user', info });
     
     if (err) {
-      console.error('Authentication error:', err);
+      // logger.error('Authentication error:', err);
       return res.status(500).json({ message: 'Internal server error during authentication' });
     }
     
     if (!user) {
       // Authentication failed - token invalid or missing
-      console.log('Authentication failed:', info);
+      logger.info('Authentication failed:', info);
       return res.status(401).json({ 
         message: 'Authentication required', 
         details: info ? info.message : 'Invalid or missing token'

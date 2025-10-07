@@ -1,10 +1,19 @@
 import { Request, Response } from 'express';
 import Card, { ICard } from '../models/Card';
+import logger from '../utils/logger';
 
 // Get all cards
 export const getCards = async (req: Request, res: Response): Promise<void> => {
   try {
-    const cards = await Card.find().sort({ createdAt: -1 });
+    logger.info("Fetching all cards");
+    // log the user making the request: statusFilters: todo, doing, done
+    logger.info(`Request query: ${JSON.stringify(req.query)}`);
+    let filters = {};
+    if (req.query.status) {
+      filters = { ...filters, status: req.query.status };
+    }
+    logger.info(`Query filters: ${JSON.stringify(filters)}`);
+    const cards = await Card.find(filters).sort({ createdAt: -1 });
     res.status(200).json(cards);
   } catch (error) {
     res.status(500).json({ message: 'Error fetching cards', error });
@@ -39,11 +48,13 @@ export const createCard = async (req: Request, res: Response): Promise<void> => 
 // Update a card
 export const updateCard = async (req: Request, res: Response): Promise<void> => {
   try {
+    console.log("Incoming update payload:", req.body); // Add this
     const card = await Card.findByIdAndUpdate(
       req.params.id,
       req.body,
       { new: true, runValidators: true }
     );
+    console.log("Updated card:", card); // Add this
     if (!card) {
       res.status(404).json({ message: 'Card not found' });
       return;
