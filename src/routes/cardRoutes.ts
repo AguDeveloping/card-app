@@ -1,5 +1,7 @@
 import express from 'express';
-import { getCards, getCardById, createCard, updateCard, deleteCard } from '../controllers/cardController';
+import {
+    getCards, getCardById, createCard, updateCard, deleteCard, getCardStats
+} from '../controllers/cardController';
 import { requireAuth } from '../config/auth';
 import { requireAdmin } from '../middleware/authorization';
 
@@ -10,7 +12,8 @@ router.use(requireAuth);
 
 // Card routes
 router.get('/', getCards);
-router.get('/:id', getCardById);
+router.get('/stat/', getCardStats); // static route must be before :id route
+router.get('/:id', getCardById);    // dynamic route
 router.post('/', createCard);
 router.put('/:id', updateCard);
 
