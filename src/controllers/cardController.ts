@@ -7,12 +7,12 @@ export const getCards = async (req: Request, res: Response): Promise<void> => {
   try {
     logger.info("Fetching all cards");
     // log the user making the request: statusFilters: todo, doing, done
-    logger.info(`Request query: ${JSON.stringify(req.query)}`);
+    // logger.info(`Request query: ${JSON.stringify(req.query)}`);
     let filters = {};
     if (req.query.status) {
       filters = { ...filters, status: req.query.status };
     }
-    logger.info(`Query filters: ${JSON.stringify(filters)}`);
+    // logger.info(`Query filters: ${JSON.stringify(filters)}`);
     const cards = await Card.find(filters).sort({ createdAt: -1 });
     res.status(200).json(cards);
   } catch (error) {
@@ -76,5 +76,83 @@ export const deleteCard = async (req: Request, res: Response): Promise<void> => 
     res.status(200).json({ message: 'Card deleted successfully' });
   } catch (error) {
     res.status(500).json({ message: 'Error deleting card', error });
+  }
+};
+
+// Get card statistics
+export const getCardStats = async (req: Request, res: Response): Promise<void> => {
+  try {
+    logger.info("Fetching card statistics");
+    logger.info(`Request query: ${JSON.stringify(req.query)}`);
+
+    const now = new Date();
+    const days7 = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const days30 = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    logger.info(`Calculating stats from ${days30} to ${now}`);
+    logger.info(`Calculating stats from ${days7} to ${now}`);
+    const stats = await Card.aggregate([
+      {
+        $facet: {
+          totalCards: [
+            { $count: "count" }
+          ],
+          totalStatus: [
+            { $group: { _id: "$status", count: { $sum: 1 } } }
+          ],
+          totalProjects: [
+            { $group: { _id: "$title" } },
+            { $count: "count" }
+          ],
+          cardsCreatedLast7Days: [
+            { $match: { createdAt: { $gte: days7 } } },
+            { $count: "count" }
+          ],
+          cardsCompletedLast7Days: [
+            { $match: { status: "done", updatedAt: { $gte: days7 } } },
+            { $count: "count" }
+          ],
+          avgCardsCompletedPerDayLast30Days: [
+            { $match: { status: "done", updatedAt: { $gte: days30 } } },
+            {
+              $group: {
+                _id: { $dateToString: { format: "%Y-%m-%d", date: "$updatedAt" } },
+                count: { $sum: 1 }
+              }
+            },
+            {
+              $group: {
+                _id: null,
+                avg: { $avg: "$count" }
+              }
+            }
+          ],
+          mostActiveProjectLast30Days: [
+            { $match: { createdAt: { $gte: days30 } } },
+            { $group: { _id: "$title", count: { $sum: 1 } } },
+            { $sort: { count: -1 } },
+            { $limit: 1 }
+          ]
+        }
+      },
+      {
+        $project: {
+          totalCards: { $arrayElemAt: ["$totalCards.count", 0] },
+          totalStatus: "$totalStatus",
+          totalProjects: { $arrayElemAt: ["$totalProjects.count", 0] },
+          cardsCreatedLast7Days: { $arrayElemAt: ["$cardsCreatedLast7Days.count", 0] },
+          cardsCompletedLast7Days: { $arrayElemAt: ["$cardsCompletedLast7Days.count", 0] },
+          avgCardsCompletedPerDayLast30Days: { $ifNull: [{ $arrayElemAt: ["$avgCardsCompletedPerDayLast30Days.avg", 0] }, 0] },
+          mostActiveProjectLast30Days: { $arrayElemAt: ["$mostActiveProjectLast30Days", 0] }
+        }
+      }
+    ])
+    logger.info(`Card statistics: ${JSON.stringify(stats)}`);
+    if (!stats || stats.length === 0) {
+      res.status(404).json({ message: 'No statistics available' });
+      return;
+    }
+    res.status(200).json(stats);
+  } catch (error) {
+    res.status(500).json({ message: 'Error fetching card statistics', error });
   }
 };

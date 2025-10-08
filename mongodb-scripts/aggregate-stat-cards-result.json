@@ -1,0 +1,23 @@
+{
+    "totalCards": NumberInt(74),
+    "totalStatus": [
+        {
+            "_id": "done",
+            "count": 29.0
+        },
+        {
+            "_id": "doing",
+            "count": 23.0
+        },
+        {
+            "_id": "todo",
+            "count": 22.0
+        }
+    ],
+    "totalProjects": NumberInt(22),
+    "avgCardsCompletedPerDayLast30Days": 29.0,
+    "mostActiveProjectLast30Days": {
+        "_id": "Fix mobile responsiveness issues",
+        "count": 7.0
+    }
+}
