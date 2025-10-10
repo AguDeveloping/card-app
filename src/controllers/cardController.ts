@@ -83,13 +83,13 @@ export const deleteCard = async (req: Request, res: Response): Promise<void> => 
 export const getCardStats = async (req: Request, res: Response): Promise<void> => {
   try {
     logger.info("Fetching card statistics");
-    logger.info(`Request query: ${JSON.stringify(req.query)}`);
+    // logger.info(`Request query: ${JSON.stringify(req.query)}`);
 
     const now = new Date();
     const days7 = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
     const days30 = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-    logger.info(`Calculating stats from ${days30} to ${now}`);
-    logger.info(`Calculating stats from ${days7} to ${now}`);
+    // logger.info(`Calculating stats from ${days30} to ${now}`);
+    // logger.info(`Calculating stats from ${days7} to ${now}`);
     const stats = await Card.aggregate([
       {
         $facet: {
@@ -111,7 +111,7 @@ export const getCardStats = async (req: Request, res: Response): Promise<void> =
             { $match: { status: "done", updatedAt: { $gte: days7 } } },
             { $count: "count" }
           ],
-          avgCardsCompletedPerDayLast30Days: [
+          cardsCompletedLast30Days: [
             { $match: { status: "done", updatedAt: { $gte: days30 } } },
             {
               $group: {
@@ -122,7 +122,7 @@ export const getCardStats = async (req: Request, res: Response): Promise<void> =
             {
               $group: {
                 _id: null,
-                avg: { $avg: "$count" }
+                count: { $avg: "$count" }
               }
             }
           ],
@@ -130,7 +130,8 @@ export const getCardStats = async (req: Request, res: Response): Promise<void> =
             { $match: { createdAt: { $gte: days30 } } },
             { $group: { _id: "$title", count: { $sum: 1 } } },
             { $sort: { count: -1 } },
-            { $limit: 1 }
+            { $limit: 1 },
+            { $project: { name: "$_id", count: 1, _id: 0 } }
           ]
         }
       },
@@ -139,14 +140,14 @@ export const getCardStats = async (req: Request, res: Response): Promise<void> =
           totalCards: { $arrayElemAt: ["$totalCards.count", 0] },
           totalStatus: "$totalStatus",
           totalProjects: { $arrayElemAt: ["$totalProjects.count", 0] },
-          cardsCreatedLast7Days: { $arrayElemAt: ["$cardsCreatedLast7Days.count", 0] },
-          cardsCompletedLast7Days: { $arrayElemAt: ["$cardsCompletedLast7Days.count", 0] },
-          avgCardsCompletedPerDayLast30Days: { $ifNull: [{ $arrayElemAt: ["$avgCardsCompletedPerDayLast30Days.avg", 0] }, 0] },
+          cardsCreatedLast7Days: { $ifNull: [{ $arrayElemAt: ["$cardsCreatedLast7Days.count", 0] }, 0] },
+          cardsCompletedLast7Days: { $ifNull: [{ $arrayElemAt: ["$cardsCompletedLast7Days.count", 0] }, 0] },
+          cardsCompletedLast30Days: { $ifNull: [{ $arrayElemAt: ["$cardsCompletedLast30Days.count", 0] }, 0] },
           mostActiveProjectLast30Days: { $arrayElemAt: ["$mostActiveProjectLast30Days", 0] }
         }
       }
     ])
-    logger.info(`Card statistics: ${JSON.stringify(stats)}`);
+    // logger.info(`Card statistics: ${JSON.stringify(stats)}`);
     if (!stats || stats.length === 0) {
       res.status(404).json({ message: 'No statistics available' });
       return;
