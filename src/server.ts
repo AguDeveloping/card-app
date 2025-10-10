@@ -55,6 +55,7 @@ app.get('/', (req: Request, res: Response) => {
       profile: 'GET /api/auth/profile (requires authentication)',
       // Card endpoints
       getAllCards: 'GET /api/cards (requires authentication)',
+      getCardStats: 'GET /api/cards/stat (requires authentication)',
       getCardById: 'GET /api/cards/:id (requires authentication)',
       createCard: 'POST /api/cards (requires authentication)',
       updateCard: 'PUT /api/cards/:id (requires authentication)',
