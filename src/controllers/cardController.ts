@@ -1,11 +1,15 @@
 import { Request, Response } from 'express';
 import Card, { ICard } from '../models/Card';
+import { IUser } from '../models/User';
+import { checkOwnership } from '../middleware/authorization';
+import aggregateCardStats from '../queries/aggregateCardStats';
 import logger from '../utils/logger';
 
-// Get all cards
-export const getCards = async (req: Request, res: Response): Promise<void> => {
+// Get user's own cards
+export const getUserCards = async (req: Request, res: Response): Promise<void> => {
   try {
-    logger.info("Fetching all cards");
+    const user = req.user as IUser;
+
     // log the user making the request: statusFilters: todo, doing, done
     // logger.info(`Request query: ${JSON.stringify(req.query)}`);
     let filters = {};
@@ -13,9 +17,15 @@ export const getCards = async (req: Request, res: Response): Promise<void> => {
       filters = { ...filters, status: req.query.status };
     }
     // logger.info(`Query filters: ${JSON.stringify(filters)}`);
-    const cards = await Card.find(filters).sort({ createdAt: -1 });
-    res.status(200).json(cards);
+
+    const cards = await Card
+      .find({ ...filters, userId: user._id })
+      .populate('userId', 'username email')
+      .sort({ createdAt: -1 });
+
+    res.json(cards);
   } catch (error) {
+    logger.error('Error fetching user cards:', error);
     res.status(500).json({ message: 'Error fetching cards', error });
   }
 };
@@ -23,13 +33,25 @@ export const getCards = async (req: Request, res: Response): Promise<void> => {
 // Get a single card by ID
 export const getCardById = async (req: Request, res: Response): Promise<void> => {
   try {
-    const card = await Card.findById(req.params.id);
+    const user = req.user as IUser;
+    const cardId = req.params.id;
+
+    const card = await Card.findById(cardId).populate('userId', 'username email');
+
     if (!card) {
       res.status(404).json({ message: 'Card not found' });
       return;
     }
-    res.status(200).json(card);
+
+    // Check ownership
+    if (!checkOwnership(card.userId._id.toString(), user)) {
+      res.status(403).json({ message: 'Access denied - not card owner' });
+      return;
+    }
+
+    res.json(card);
   } catch (error) {
+    logger.error('Error fetching card:', error);
     res.status(500).json({ message: 'Error fetching card', error });
   }
 };
@@ -37,10 +59,14 @@ export const getCardById = async (req: Request, res: Response): Promise<void> =>
 // Create a new card
 export const createCard = async (req: Request, res: Response): Promise<void> => {
   try {
-    const card = new Card(req.body);
+    const user = req.user as IUser;
+    const card = new Card({ ...req.body, userId: user._id });
     const savedCard = await card.save();
+    await savedCard.populate('userId', 'username email'); // Populate user details
+    logger.info(`Card created by user ${user.username} (${user._id}): ${savedCard._id}`);
     res.status(201).json(savedCard);
   } catch (error) {
+    logger.error('Error creating card:', error);
     res.status(500).json({ message: 'Error creating card', error });
   }
 };
@@ -48,19 +74,54 @@ export const createCard = async (req: Request, res: Response): Promise<void> => 
 // Update a card
 export const updateCard = async (req: Request, res: Response): Promise<void> => {
   try {
-    console.log("Incoming update payload:", req.body); // Add this
-    const card = await Card.findByIdAndUpdate(
-      req.params.id,
-      req.body,
-      { new: true, runValidators: true }
-    );
-    console.log("Updated card:", card); // Add this
+    const user = req.user as IUser;
+    const cardId = req.params.id;
+
+    logger.info('=== UPDATE CARD DEBUG ===');
+    logger.info('User from req.user:', {
+      id: user._id.toString(),
+      username: user.username,
+      role: user.role
+    });
+    logger.info('Card ID:', cardId);
+
+    const card: ICard | null = await Card.findById(cardId);
+
     if (!card) {
-      res.status(404).json({ message: 'Card not found' });
+      res
+        .status(404)
+        .json({ message: 'Card not found' });
       return;
     }
-    res.status(200).json(card);
-  } catch (error) {
+
+    logger.info('Card found:', {
+      id: card._id!.toString(),
+      userId: card.userId.toString(),
+      title: card.title
+    });
+
+    // Check ownership
+    if (!checkOwnership(card.userId.toString(), user)) {
+      logger.info('❌ Access denied - ownership check failed');
+      res
+        .status(403)
+        .json({ message: 'Access denied - not card owner' });
+      return;
+    }
+    logger.info('✅ Ownership check passed, updating card...');
+
+    const updatedCard = await Card
+      .findByIdAndUpdate(
+        cardId,
+        req.body,
+        { new: true, runValidators: true }
+      )
+      .populate('userId', 'username email');
+
+    logger.info('✅ Card updated successfully');
+    res.json(updatedCard);
+  } catch (error: any) {
+    logger.error('Error updating card:', error.message);
     res.status(500).json({ message: 'Error updating card', error });
   }
 };
@@ -68,13 +129,26 @@ export const updateCard = async (req: Request, res: Response): Promise<void> => 
 // Delete a card
 export const deleteCard = async (req: Request, res: Response): Promise<void> => {
   try {
-    const card = await Card.findByIdAndDelete(req.params.id);
+    const user = req.user as IUser;
+    const cardId = req.params.id;
+
+    const card = await Card.findById(cardId);
+
     if (!card) {
       res.status(404).json({ message: 'Card not found' });
       return;
     }
-    res.status(200).json({ message: 'Card deleted successfully' });
+
+    // Check ownership
+    if (!checkOwnership(card.userId.toString(), user)) {
+      res.status(403).json({ message: 'Access denied - not card owner' });
+      return;
+    }
+
+    await Card.findByIdAndDelete(cardId);
+    res.json({ message: 'Card deleted successfully' });
   } catch (error) {
+    logger.error('Error deleting card:', error);
     res.status(500).json({ message: 'Error deleting card', error });
   }
 };
@@ -85,69 +159,11 @@ export const getCardStats = async (req: Request, res: Response): Promise<void> =
     logger.info("Fetching card statistics");
     // logger.info(`Request query: ${JSON.stringify(req.query)}`);
 
-    const now = new Date();
-    const days7 = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-    const days30 = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-    // logger.info(`Calculating stats from ${days30} to ${now}`);
-    // logger.info(`Calculating stats from ${days7} to ${now}`);
-    const stats = await Card.aggregate([
-      {
-        $facet: {
-          totalCards: [
-            { $count: "count" }
-          ],
-          totalStatus: [
-            { $group: { _id: "$status", count: { $sum: 1 } } }
-          ],
-          totalProjects: [
-            { $group: { _id: "$title" } },
-            { $count: "count" }
-          ],
-          cardsCreatedLast7Days: [
-            { $match: { createdAt: { $gte: days7 } } },
-            { $count: "count" }
-          ],
-          cardsCompletedLast7Days: [
-            { $match: { status: "done", updatedAt: { $gte: days7 } } },
-            { $count: "count" }
-          ],
-          cardsCompletedLast30Days: [
-            { $match: { status: "done", updatedAt: { $gte: days30 } } },
-            {
-              $group: {
-                _id: { $dateToString: { format: "%Y-%m-%d", date: "$updatedAt" } },
-                count: { $sum: 1 }
-              }
-            },
-            {
-              $group: {
-                _id: null,
-                count: { $avg: "$count" }
-              }
-            }
-          ],
-          mostActiveProjectLast30Days: [
-            { $match: { createdAt: { $gte: days30 } } },
-            { $group: { _id: "$title", count: { $sum: 1 } } },
-            { $sort: { count: -1 } },
-            { $limit: 1 },
-            { $project: { name: "$_id", count: 1, _id: 0 } }
-          ]
-        }
-      },
-      {
-        $project: {
-          totalCards: { $arrayElemAt: ["$totalCards.count", 0] },
-          totalStatus: "$totalStatus",
-          totalProjects: { $arrayElemAt: ["$totalProjects.count", 0] },
-          cardsCreatedLast7Days: { $ifNull: [{ $arrayElemAt: ["$cardsCreatedLast7Days.count", 0] }, 0] },
-          cardsCompletedLast7Days: { $ifNull: [{ $arrayElemAt: ["$cardsCompletedLast7Days.count", 0] }, 0] },
-          cardsCompletedLast30Days: { $ifNull: [{ $arrayElemAt: ["$cardsCompletedLast30Days.count", 0] }, 0] },
-          mostActiveProjectLast30Days: { $arrayElemAt: ["$mostActiveProjectLast30Days", 0] }
-        }
-      }
-    ])
+    const user = req.user as IUser;
+
+    const stats = await aggregateCardStats(user);
     // logger.info(`Card statistics: ${JSON.stringify(stats)}`);
+
     if (!stats || stats.length === 0) {
       res.status(404).json({ message: 'No statistics available' });
       return;
