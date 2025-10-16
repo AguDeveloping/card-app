@@ -4,11 +4,12 @@ import dotenv from 'dotenv';
 import passport from 'passport';
 import cardRoutes from './routes/cardRoutes';
 import authRoutes from './routes/authRoutes';
+import adminRoutes from './routes/adminRoutes';
+import debugRoutes from './routes/debugRoutes';
 import { loggerMiddleware, errorHandler } from './middleware/common';
-import { debugAuthMiddleware } from './middleware/debug';
 import { connectToDatabase } from './config/database';
-import { initializePassport } from './config/auth';
-import { initializeAdminUser } from './controllers/authController';
+import { initializePassport } from './middleware/auth';
+import { initializeAdminUser, initializeOwnerUser } from './controllers/authController';
 import logger from './utils/logger';
 
 // Load environment variables
@@ -27,11 +28,10 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(loggerMiddleware);
-app.use(debugAuthMiddleware); // Add debug middleware to log auth headers
 
 // Initialize Passport
 initializePassport();
-app.use(passport.initialize()); // This is critical for passport authentication to work
+app.use(passport.initialize()); // This is critical for passport authentication to work.
 
 // Connect to MongoDB
 connectToDatabase().catch(err => {
@@ -39,8 +39,13 @@ connectToDatabase().catch(err => {
   process.exit(1);
 });
 
+// Initialize owner user
+initializeOwnerUser().catch((err: any) => {
+  logger.error('Failed to initialize owner user:', err);
+});
+
 // Initialize admin user
-initializeAdminUser().catch(err => {
+initializeAdminUser().catch((err: any) => {
   logger.error('Failed to initialize admin user:', err);
 });
 
@@ -54,7 +59,7 @@ app.get('/', (req: Request, res: Response) => {
       register: 'POST /api/auth/register',
       profile: 'GET /api/auth/profile (requires authentication)',
       // Card endpoints
-      getAllCards: 'GET /api/cards (requires authentication)',
+      getUserCards: 'GET /api/cards (requires authentication)',
       getCardStats: 'GET /api/cards/stat (requires authentication)',
       getCardById: 'GET /api/cards/:id (requires authentication)',
       createCard: 'POST /api/cards (requires authentication)',
@@ -69,6 +74,12 @@ app.use('/api/auth', authRoutes);
 
 // Card routes - require authentication
 app.use('/api/cards', cardRoutes);
+
+// Admin routes for testing and debugging - requires authentication
+app.use('/api/admin', adminRoutes);
+
+// Debug routes for testing and debugging - requires authentication
+app.use('/api/debug', debugRoutes);
 
 // Error handling middleware
 app.use(errorHandler);

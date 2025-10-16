@@ -14,35 +14,41 @@ export interface IUser extends Document {
 
 const UserSchema: Schema = new Schema(
   {
-    username: { 
-      type: String, 
-      required: true, 
+    username: {
+      type: String,
+      required: true,
       unique: true,
       trim: true
     },
-    email: { 
-      type: String, 
-      required: true, 
+    email: {
+      type: String,
+      required: true,
       unique: true,
       trim: true,
       lowercase: true
     },
-    password: { 
-      type: String, 
+    password: {
+      type: String,
       required: true,
       minlength: 6
     },
-    role: { 
-      type: String, 
-      enum: ['user', 'admin'],
+    role: {
+      type: String,
+      enum: ['owner', 'admin', 'editor', 'user', 'reader'],
       default: 'user'
     }
+    // TODO AR: add organization entity later
+    // and link users to organizations for multi-tenant support
+    // orgId: {
+    //   type: mongoose.Types.ObjectId,
+    //   ref: 'Organization'
+    // }
   },
   { timestamps: true }
 );
 
 // Hash password before saving
-UserSchema.pre<IUser>('save', async function(next) {
+UserSchema.pre<IUser>('save', async function (next) {
   // Only hash the password if it has been modified (or is new)
   if (!this.isModified('password')) return next();
 
@@ -58,7 +64,7 @@ UserSchema.pre<IUser>('save', async function(next) {
 });
 
 // Method to compare password for login
-UserSchema.methods.comparePassword = async function(candidatePassword: string): Promise<boolean> {
+UserSchema.methods.comparePassword = async function (candidatePassword: string): Promise<boolean> {
   return bcrypt.compare(candidatePassword, this.password);
 };
 
