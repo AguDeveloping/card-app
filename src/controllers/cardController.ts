@@ -10,11 +10,11 @@ export const getUserCards = async (req: Request, res: Response): Promise<void> =
   try {
     const user = req.user as IUser;
 
-    // log the user making the request: statusFilters: todo, doing, done
+    // log the user making the request: statusFilters: todo, doing, done ; title.
     // logger.info(`Request query: ${JSON.stringify(req.query)}`);
     let filters = {};
-    if (req.query.status) {
-      filters = { ...filters, status: req.query.status };
+    if (req.query) {
+      filters = { ...req.query };
     }
     // logger.info(`Query filters: ${JSON.stringify(filters)}`);
 
