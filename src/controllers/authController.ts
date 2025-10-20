@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import User, { IUser } from '../models/User';
 import { generateToken } from '../middleware/auth';
+import passport from 'passport';
 import logger from '../utils/logger';
 
 import jwt from 'jsonwebtoken';
@@ -8,28 +9,55 @@ import jwt from 'jsonwebtoken';
 // Use a consistent JWT secret across the application
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 
-
 // Register a new user
 export const register = async (req: Request, res: Response): Promise<void> => {
   try {
     const { username, email, password, role } = req.body;
 
+    // Input validation
+    if (!username || !email || !password) {
+      res.status(400).json({ message: 'Username, email, and password are required' });
+      return;
+    }
+
+    // Email format validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      res.status(400).json({ message: 'Invalid email format' });
+      return;
+    }
+
+    // Password length validation
+    if (password.length < 6) {
+      res.status(400).json({ message: 'Password must be at least 6 characters long' });
+      return;
+    }
+
     // Check if user already exists
     const existingUser = await User.findOne({ $or: [{ email }, { username }] });
     if (existingUser) {
-      res.status(400).json({ message: 'User already exists' });
+      const field = existingUser.email === email ? 'Email' : 'Username';
+      res.status(400).json({ message: `${field} already exists` });
       return;
     }
+
+    // Only allow certain roles during registration
+    const allowedRoles = ['admin', 'user', 'editor', 'reader'];
+    if (!role || !allowedRoles.includes(role)) {
+      res.status(400).json({ message: 'Invalid role specified' });
+      return;
+    }
+    const userRole = role && allowedRoles.includes(role) ? role : 'admin';
 
     // Create new user
     const user: IUser = new User({
       username,
       email,
       password,
-      role: role || 'user' // Default to 'user' if role not provided
+      role: userRole    // Use validated role
     });
-
     await user.save();
+    logger.info('New user registered:', { username, email, role: userRole });
 
     // Generate JWT token
     const token = generateToken(user._id.toString());
@@ -45,38 +73,32 @@ export const register = async (req: Request, res: Response): Promise<void> => {
       }
     });
   } catch (error) {
+    logger.error('Registration error:', error);
     res.status(500).json({ message: 'Error registering user', error });
   }
 };
 
 // Login user
 export const login = async (req: Request, res: Response): Promise<void> => {
-  try {
-    const { username, password } = req.body;
-
-    // Find user by username
-    const user = await User.findOne({ username }) as IUser;
+  // Use passport's local strategy to authenticate
+  passport.authenticate('local', { session: false }, (err: any, user: IUser, info: any) => {
+    if (err) {
+      logger.error('Login error:', err);
+      res.status(500).json({ message: 'Error during authentication', error: err });
+      return;
+    }
     if (!user) {
-      res.status(401).json({ message: 'Invalid credentials' });
+      logger.info('Login failed:', info?.message || 'Invalid credentials');
+      res.status(401).json({ message: info?.message || 'Invalid credentials' });
       return;
     }
-
-    // Check if password matches
-    const isMatch = await user.comparePassword(password);
-    if (!isMatch) {
-      res.status(401).json({ message: 'Invalid credentials' });
-      return;
-    }
-
     // Generate JWT token
     const token = generateToken(user._id.toString());
-
     // TODO AR - to debugging decoded token
     // Add debugging
     logger.info('=== LOGIN DEBUG - START ===');
     logger.info('User ID:', user._id.toString());
     logger.info('Generated token:', token ? `${token.substring(0, 20)}...` : 'No token');
-
     // Verify the token we just created
     try {
       const decoded = jwt.verify(token, JWT_SECRET);
@@ -86,7 +108,6 @@ export const login = async (req: Request, res: Response): Promise<void> => {
     }
     logger.info('=== LOGIN DEBUG - FINISH ===');
     // End debugging
-
     res.status(200).json({
       message: 'Login successful',
       token,
@@ -97,9 +118,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
         role: user.role
       }
     });
-  } catch (error) {
-    res.status(500).json({ message: 'Error logging in', error });
-  }
+  })(req, res);
 };
 
 // Get current user profile
