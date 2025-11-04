@@ -1,9 +1,5 @@
 import mongoose from 'mongoose';
-import dotenv from 'dotenv';
 import logger from '../utils/logger';
-
-// Load environment variables
-dotenv.config();
 
 // Database connection options
 const dbOptions = {
@@ -13,8 +9,10 @@ const dbOptions = {
 // Connect to MongoDB
 export const connectToDatabase = async (): Promise<void> => {
   try {
-    const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/card-app';
-    await mongoose.connect(mongoUri);
+    logger.info('Connecting to MongoDB...');
+    const mongoUri = process.env.MONGODB_URI;
+    logger.info('Using MongoDB URI: ', mongoUri ? 'set' : 'not set');
+    await mongoose.connect(mongoUri!);
     logger.info('Connected to MongoDB');
   } catch (error) {
     logger.error('MongoDB connection error:', error);

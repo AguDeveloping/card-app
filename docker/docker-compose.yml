@@ -1,0 +1,35 @@
+name: card-app
+services:
+  database:
+    image: mongo:latest
+    container_name: mongodb-card
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=admin
+      - MONGO_INITDB_ROOT_PASSWORD=password
+    restart: unless-stopped
+    networks:
+      - card-network
+
+  backend:
+    build:
+      context: ../
+      dockerfile: docker/Dockerfile
+    container_name: backend-card
+    ports:
+      - "3000:3000"
+    depends_on:
+      - database
+    networks:
+      - card-network
+
+volumes:
+  mongodb_data:
+    driver: local
+
+networks:
+  card-network:
+    driver: bridge
