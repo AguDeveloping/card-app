@@ -17,6 +17,7 @@ logger.info('=== APPLICATION STARTING ===');
 // Load environment variables
 dotenv.config({ path: '.env' }); // Load base config first
 dotenv.config({ path: '.env.local', override: true }); // Load local overrides
+dotenv.config({ path: '.env.production', override: true }); // Load production overrides
 
 logger.info('Environment variables loaded');
 logger.info(`NODE_ENV: ${process.env.NODE_ENV}`);
@@ -45,7 +46,13 @@ logger.info('API Configuration:', {
 logger.info('=== SETTING UP MIDDLEWARE ===');
 // Middleware
 app.use(cors({
-  origin: '*', // Allow all origins
+  origin: [
+    'http://localhost:3000',           // Local development
+    'http://localhost:4000',           // Local frontend
+    'https://agudevelopin.github.io',  // GitHub Pages frontend
+    'https://*.railway.app'            // Railway domains
+  ],
+  credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
@@ -82,12 +89,11 @@ logger.info('=== SETTING UP ROUTES ===');
 
 // Add health check endpoint
 app.get('/health', (req: Request, res: Response) => {
-  logger.info('Health check endpoint called');
+  // logger.info('Health check endpoint called');
   res.status(200).json({
-    status: 'OK',
+    status: 'healthy',
     timestamp: new Date().toISOString(),
-    uptime: process.uptime(),
-    environment: process.env.NODE_ENV
+    version: process.env.npm_package_version || '1.0.0'
   });
 });
 
