@@ -13,10 +13,15 @@ out/
 *.tsbuildinfo
 
 # Environment variables
+.env
+.env.*
 .env.local
-.env.development.local
-.env.test.local
-.env.production.local
+.env.production
+.env.development
+.env.test
+
+# Except the example file
+!.env.example
 
 # IDE and editor folders
 .idea/
@@ -24,6 +29,7 @@ out/
 *.swp
 *.swo
 .DS_Store
+Thumbs.db
 
 # Logs
 logs/
@@ -50,9 +56,6 @@ coverage/
 # Yarn Integrity file
 .yarn-integrity
 
-# dotenv environment variable files
-.env
-
 # parcel-bundler cache (https://parceljs.org/)
 .cache
 .parcel-cache
@@ -62,10 +65,3 @@ coverage/
 
 # Nuxt.js build / generate output
 .nuxt
-
-# MongoDB data directory
-data/db/
-
-# Docker related
-.docker/
-docker-compose.override.yml
