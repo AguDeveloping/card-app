@@ -14,7 +14,7 @@ RUN npm ci
 COPY /src ./src
 COPY /types ./types
 
-# Build TypeScript (no .env needed here)
+# Build TypeScript
 RUN npm run build
 
 # Production stage
@@ -23,7 +23,8 @@ FROM node:24-alpine AS production
 WORKDIR /app
 
 # Copy package files
-COPY package*.json ./
+COPY package.json .
+COPY package-lock.json .
 
 # Install only production dependencies
 RUN npm ci --only=production && npm cache clean --force
@@ -43,9 +44,9 @@ USER nodejs
 # Railway automatically sets PORT environment variable
 EXPOSE $PORT
 
-# Health check (now runs as nodejs user)
-HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-  CMD wget --no-verbose --tries=1 --spider http://localhost:$PORT/ || exit 1
+# Temporarily disable health check to debug startup
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+  CMD wget --no-verbose --tries=1 --spider http://localhost:$PORT/health || exit 1
 
-# Use Railway's PORT variable
-CMD ["sh", "-c", "PORT=${PORT:-3000} node dist/server.js"]
+# Simple command - Railway provides PORT automatically
+CMD ["node", "dist/server.js"]
