@@ -28,7 +28,7 @@ const takeAndVerifyToken = (res: Response, userDB: IUser): string | Response | u
   } catch (err: any) {
     logger.error('❌ Token verification failed:', err.message);
     return res.status(500).json({ message: 'Error during token verification', error: err.message });
-  } 
+  }
   return token;
 };
 
@@ -187,20 +187,22 @@ export const initializeOwnerUser = async (): Promise<void> => {
   try {
     // Check if owner user already exists
     const ownerExists = await User.findOne({ username: 'owner' }) as IUser;
+    // Longer password to meet minimum length requirement
+    const password = process.env.API_PASSWORD_OWNER || 'owner123';
 
     if (!ownerExists) {
       // Create default owner user
       const ownerUser = new User({
         username: 'owner',
         email: 'owner@example.com',
-        password: 'owner123', // Longer password to meet minimum length requirement
+        password,
         role: 'owner'
       });
 
       await ownerUser.save();
       logger.info('✅ Default owner user created');
     }
-  } catch (error) {
-    logger.error('❌ Error initializing owner user:', error);
+  } catch (error: any) {
+    logger.error('❌ Error initializing owner user:', error.message);
   }
 };
