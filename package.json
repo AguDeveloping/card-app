@@ -1,9 +1,26 @@
 {
   "name": "card-app",
   "version": "1.1.0",
-  "description": "",
-  "author": "",
-  "keywords": [],
+  "description": "Backend service for the Board App — provides RESTful APIs for managing cards, tasks, projects, and user data.",
+    "author": {
+    "name": "AguDeveloping",
+    "url": "https://github.com/AguDeveloping"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/AguDeveloping/card-app"
+  },
+  "keywords": [
+    "nodejs",
+    "express",
+    "api",
+    "backend",
+    "task-management",
+    "cards",
+    "productivity",
+    "projects",
+    "rest-api"
+  ],
   "license": "ISC",
   "engines": {
     "npm": "11.6.1",
