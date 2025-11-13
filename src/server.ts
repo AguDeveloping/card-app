@@ -87,7 +87,7 @@ try {
     origin: [
       'http://localhost:3000',
       'http://localhost:4000',
-      'https://agudevelopin.github.io',
+      /^https:\/\/agudeveloping\.github\.io(\/.*)?$/,
       /https:\/\/.*\.railway\.app$/
     ],
     credentials: true,
