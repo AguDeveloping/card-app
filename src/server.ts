@@ -22,7 +22,7 @@ logger.info('=== Database imported ===');
 logger.debug('=== DEBUG: Middleware importing... ===');
 import passport from 'passport';
 import { initializePassport } from './middleware/auth';
-import { loggerMiddleware, errorHandler } from './middleware/common';
+import { loggerMiddleware, errorHandler, requireDatabase } from './middleware/common';
 logger.info('=== Passport imported ===');
 
 logger.info('✅ All imports completed');
@@ -85,8 +85,15 @@ try {
   // CORS configuration
   app.use(cors({
     origin: [
-      'http://localhost:3000',
-      'http://localhost:4000',
+      'http://localhost:3000',    // Backend Api local development
+      'http://0.0.0.0:3000',      // Backend Api local development
+      'http://127.0.0.1:3000',    // Backend Api local development
+      'http://localhost:3003',    // Frontend React local development
+      'http://0.0.0.0:3003',      // Frontend React local development
+      'http://127.0.0.1:3003',    // Frontend React local development
+      'http://localhost:4000',    // Frontend Docker local development
+      'http://0.0.0.0:4000',      // Frontend Docker local development
+      'http://127.0.0.1:4000',    // Frontend Docker local development
       /^https:\/\/agudeveloping\.github\.io(\/.*)?$/,
       /https:\/\/.*\.railway\.app$/
     ],
@@ -113,13 +120,13 @@ try {
   app.use('', infoRoutes);
 
   // Auth routes
-  app.use(`${API_PATH}/auth`, authRoutes);
+  app.use(`${API_PATH}/auth`, requireDatabase, authRoutes);
 
   // Card routes - require authentication
-  app.use(`${API_PATH}/cards`, cardRoutes);
+  app.use(`${API_PATH}/cards`, requireDatabase, cardRoutes);
 
   // Admin routes for testing and debugging - requires authentication
-  app.use(`${API_PATH}/admin`, adminRoutes);
+  app.use(`${API_PATH}/admin`, requireDatabase, adminRoutes);
 
   // Debug routes for testing and debugging - requires authentication
   app.use(`${API_PATH}/debug`, debugRoutes);

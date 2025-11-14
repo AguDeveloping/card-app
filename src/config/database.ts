@@ -57,93 +57,106 @@ const buildMongoUri = (): string => {
   return uri;
 };
 
-
-// Connect to MongoDB
-export const connectToDatabase = async (): Promise<void> => {
-  try {
-    logger.info('=== CONNECTING TO DATABASE ===');
-
-    // Build complete MongoDB URI
-    const mongoUri = buildMongoUri();
-
-    // Log connection details (hide credentials)
-    const sanitizedUri = mongoUri.replace(/:\/\/([^:]+):([^@]+)@/, '://[USERNAME]:[PASSWORD]@');
-    logger.info(`MongoDB URI: ${sanitizedUri}`);
-    logger.info(`Database name: ${DB_CONFIG.name}`);
-    logger.info(`Auth source: ${DB_CONFIG.authSource}`);
-
-    // Log environment variable sources
-    logger.info('Environment variable sources:');
-    logger.info(`- MONGODB_URI: ${process.env.MONGODB_URI ? 'SET' : 'NOT SET'}`);
-    logger.info(`- MONGODB_AUTHSOURCE: ${process.env.MONGODB_AUTHSOURCE || 'using default'}`);
-
-    // Set mongoose options
-    mongoose.set('strictQuery', false);
-
-    // Connect with complete URI and options
-    await mongoose.connect(mongoUri, DB_CONFIG.options);
-
-    logger.info('✅ Connected to MongoDB successfully');
-    logger.info(`Connected database: ${mongoose.connection.name}`);
-    logger.info(`Host: ${mongoose.connection.host}:${mongoose.connection.port}`);
-    logger.info(`Ready state: ${mongoose.connection.readyState} (1 = connected)`);
-
-    // Test the connection with a ping
+// Connect to MongoDB with retry logic
+export const connectToDatabase = async (retries: number = 3): Promise<void> => {
+  for (let attempt = 1; attempt <= retries; attempt++) {
     try {
-      const adminDb: any = mongoose.connection.db!.admin();
-      const pingResult = await adminDb.ping();
-      logger.info('✅ MongoDB ping successful:', pingResult);
-    } catch (pingError: any) {
-      logger.warn('MongoDB ping failed (may be permissions limited):', pingError.message);
-    }
+      logger.info(`=== CONNECTING TO DATABASE (Attempt ${attempt}/${retries}) ===`);
 
-    // Handle connection events
-    mongoose.connection.on('error', (error) => {
-      logger.error('MongoDB connection error:', {
-        name: error.name,
-        message: error.message
+      // Build complete MongoDB URI
+      const mongoUri = buildMongoUri();
+
+      // Log connection details (hide credentials)
+      const sanitizedUri = mongoUri.replace(/:\/\/([^:]+):([^@]+)@/, '://[USERNAME]:[PASSWORD]@');
+      logger.info(`MongoDB URI: ${sanitizedUri}`);
+      logger.info(`Database name: ${DB_CONFIG.name}`);
+      logger.info(`Auth source: ${DB_CONFIG.authSource}`);
+
+      // Log environment variable sources
+      logger.info('Environment variable sources:');
+      logger.info(`- MONGODB_URI: ${process.env.MONGODB_URI ? 'SET' : 'NOT SET'}`);
+      logger.info(`- MONGODB_AUTHSOURCE: ${process.env.MONGODB_AUTHSOURCE || 'using default'}`);
+
+      // Set mongoose options
+      mongoose.set('strictQuery', false);
+
+      // Connect with complete URI and options
+      await mongoose.connect(mongoUri, DB_CONFIG.options);
+
+      logger.info('✅ Connected to MongoDB successfully');
+      logger.info(`Connected database: ${mongoose.connection.name}`);
+      logger.info(`Host: ${mongoose.connection.host}:${mongoose.connection.port}`);
+      logger.info(`Ready state: ${mongoose.connection.readyState} (1 = connected)`);
+
+      // Test the connection with a ping
+      try {
+        const adminDb: any = mongoose.connection.db!.admin();
+        const pingResult = await adminDb.ping();
+        logger.info('✅ MongoDB ping successful:', pingResult);
+      } catch (pingError: any) {
+        logger.warn('MongoDB ping failed (may be permissions limited):', pingError.message);
+      }
+
+      // Handle connection events
+      mongoose.connection.on('error', (error) => {
+        logger.error('MongoDB connection error:', {
+          name: error.name,
+          message: error.message
+        });
       });
-    });
 
-    mongoose.connection.on('disconnected', () => {
-      logger.warn('MongoDB disconnected');
-    });
+      mongoose.connection.on('disconnected', () => {
+        logger.warn('MongoDB disconnected');
+      });
 
-    mongoose.connection.on('reconnected', () => {
-      logger.info('MongoDB reconnected');
-    });
+      mongoose.connection.on('reconnected', () => {
+        logger.info('MongoDB reconnected');
+      });
 
-  } catch (error) {
-    logger.error('❌ MongoDB connection failed:');
+      return; // Success, exit retry loop
 
-    if (error instanceof Error) {
-      logger.error(`Error name: ${error.name}`);
-      logger.error(`Error message: ${error.message}`);
+    } catch (error) {
+      logger.error(`❌ MongoDB connection failed (Attempt ${attempt}/${retries}):`);
 
-      // Specific error handling with solutions
-      if (error.name === 'MongooseServerSelectionError') {
-        logger.error('🔍 Server selection failed');
-        logger.error('💡 Check: MongoDB service is running, network connectivity');
-      } else if (error.name === 'MongoParseError') {
-        logger.error('🔍 URI parsing failed');
-        logger.error('💡 Check: MONGODB_URI format and environment variables');
-      } else if (error.message.includes('Authentication failed')) {
-        logger.error('🔍 Authentication failed');
-        logger.error('💡 Check: MONGODB_USER, MONGODB_PASSWORD, MONGODB_AUTHSOURCE');
+      if (error instanceof Error) {
+        logger.error(`Error name: ${error.name}`);
+        logger.error(`Error message: ${error.message}`);
+
+        // Specific error handling with solutions
+        if (error.name === 'MongooseServerSelectionError') {
+          logger.error('🔍 Server selection failed');
+          logger.error('💡 Check: MongoDB service is running, network connectivity');
+        } else if (error.name === 'MongoParseError') {
+          logger.error('🔍 URI parsing failed');
+          logger.error('💡 Check: MONGODB_URI format and environment variables');
+        } else if (error.message.includes('Authentication failed')) {
+          logger.error('🔍 Authentication failed');
+          logger.error('💡 Check: MONGODB_USER, MONGODB_PASSWORD, MONGODB_AUTHSOURCE');
+        }
+
+        if (process.env.NODE_ENV !== 'production') {
+          logger.error(`Error stack: ${error.stack}`);
+        }
       }
 
-      if (process.env.NODE_ENV !== 'production') {
-        logger.error(`Error stack: ${error.stack}`);
+      if (attempt === retries) {
+        // Final attempt failed
+        logger.error('🚨 Database is required for this application to function');
+        logger.error('🔄 Exiting process - container orchestration should restart the service');
+        process.exit(1);
+      } else {
+        // Wait before retry with exponential backoff
+        const waitTime = attempt * 2000; // 2s, 4s, 6s...
+        logger.info(`⏳ Waiting ${waitTime}ms before retry...`);
+        await new Promise(resolve => setTimeout(resolve, waitTime));
+        
+        // Ensure mongoose is disconnected before retry
+        try {
+          await mongoose.disconnect();
+        } catch (disconnectError) {
+          logger.warn('Error during disconnect before retry:', disconnectError);
+        }
       }
-    }
-
-    // In production, don't exit - let the app run without database
-    if (process.env.NODE_ENV === 'production') {
-      logger.error('🚨 Running in production mode without database connection');
-      logger.error('🔄 The application will continue but database operations will fail');
-      return;
-    } else {
-      throw error;
     }
   }
 };
