@@ -408,8 +408,14 @@ LOG_LEVEL=debug npm run dev
 
 ## License
 
-This project is licensed under the MIT License.
+ISC License - see package.json for details
+
+## Author
+
+**AguDeveloping**  
+GitHub: https://github.com/AguDeveloping
 
 ---
 
-**Next Steps**: Consider implementing refresh tokens, API rate limiting, and comprehensive test coverage for production readiness.
+**Version**: 1.1.0  
+**Last Updated**: November 2025
